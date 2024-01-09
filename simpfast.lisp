@@ -1,4 +1,5 @@
-;; Making simplus faster by modest changes.
+(in-package :maxima)
+;;; TRYING TO FIX FOR SBCL MAXIMA 5.47;; Making simplus faster by modest changes.
 ;;; joint work by Barton Willis and Richard Fateman
 ;;;  7/23/06 4:44PM PST RJF
 
@@ -18,8 +19,8 @@
 ;;; seems to be rather fast now.
 
 (in-package :maxima)
-(eval-when (compile)(declaim (optimize (speed 3)(safety 1)(space 0)#+allegro(debug 0))
-			     (special *uniq-table*)))
+(declare-top (optimize (speed 3)(safety 1)(space 0)#+allegro(debug 0))
+			     (special *uniq-table* ))
 
 (define-modify-macro mincf (&optional (i 1)) addk)
 ;;(eval-when (compile)
@@ -289,8 +290,8 @@
 			  (add2 (caddr eqnflag) res))
 		  res))))
 
-;; very minor change
-(defmacro memqarr (l) `(if (memq 'array ,l) t))
+;; very minor change commented out 1/9/23 RJF
+;;(defmacro memqarr (l) `(if (memq 'array ,l) t))
 
 #+ignore
 (defun alike1 (x y)
@@ -350,21 +351,24 @@
 (defun ucons (one two)
   (uniq (cons one two) *uniq-table*))
 
-#+allegro  ;; GCL has no weak keys. SBCL  and CLISP do.  
-(setq *uniq-table*
-  (make-hash-table :size 200 :test #'equal :weak-keys :tenurable :values nil))
+;;#+allegro  ;; GCL has no weak keys. SBCL  and CLISP do.  
+;;(setq *uniq-table*
+;;  (make-hash-table :size 200 :test #'equal :weak-keys :tenurable :values nil))
 
-#+SBCL(setq *uniq-table*
-  (make-hash-table :size 200 :test #'equal :weak-keys ))
+;;+SBCL(setq *uniq-table* ;; no longer in sbcl
+;; (make-hash-table :size 200 :test #'equal :weak-keys ))
 
-#+GCL
-(setq *uniq-table*
-  (make-hash-table :size 200 :test #'equal))
+;;+SBCL
+(defvar *uniq-table* (make-hash-table :size 200 :test #'equal))
+
+;;#+GCL
+;;(setq *uniq-table*
+;;  (make-hash-table :size 200 :test #'equal))
 
 
-#+allegro
-(defvar *uniq-atom-table* (make-hash-table :test #'eql :values nil))
-#-allegro
+;;#+allegro
+;;(defvar *uniq-atom-table* (make-hash-table :test #'eql :values nil))
+;;#-allegro
 (defvar *uniq-atom-table* (make-hash-table :test #'eql ))
 
 (defun uniq (obj table)
@@ -390,7 +394,6 @@
        )))
 					;obj
   )
-
 
 (defun umapcar(f x)(cond((null x)nil)
 			(t (ucons (funcall f (car x))(umapcar f (cdr x))))))
@@ -425,7 +428,7 @@ be:
 	   (puthash-key obj table)))
 	(t obj)))
 
-Finally, you would use a function called shared-cons to cons up a cons cell that is guaranteed to be both in the hash table and having uniqure contents wrt other conses.  We started out with this definition, to avoid any ephemeral consing:
+Finally, you would use a function called shared-cons to cons up a cons cell that is guaranteed to be both in the hash table and having unique contents wrt other conses.  We started out with this definition, to avoid any ephemeral consing:
 
 (let (cell) ;; reusable local cons or nil
   (defun shared-cons (one two &aux tcell)
@@ -466,8 +469,8 @@ Two more issues:
 
 ;;; more changes to simp.lisp 
 ;;; hacking great
-(eval-when (compile)
-   (declaim (optimize (speed 3) (safety 1) (space 0) (compilation-speed 0))))
+;;(eval-when (compile)
+;;   (declaim (optimize (speed 3) (safety 1) (space 0) (compilation-speed 0))))
   ;;(use-package climax)
 ;; lots of stuff in nnewsimp.cl were taken out (instead of debugged)
 ;;**********************************************************************;;
@@ -576,7 +579,7 @@ Two more issues:
 	       #.(1- most-positive-fixnum) ))) ;; make it even, to start.
 
 #+ignore
-;;; the respace algorithm had bugs. dont' use it.
+;;; the respace algorithm had bugs. don't use it.
 (defun etree-i (data comp tree lo hi)
   (case (funcall comp data (etree-data tree))
     (0 (format t "~%warning ~s found in tree but not hashtable" data)
@@ -791,7 +794,6 @@ Two more issues:
     (a2t 0 (1- (length a)))))
 
 
-(eval-when (compile load)(declaim (special *uniq-table*)))
 (loop for k in '(mplus mtimes mexpt) do  
       (setf (get k 'msimpind)(uniq (get k 'msimpind) *uniq-table*)))
 

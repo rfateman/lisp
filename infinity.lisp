@@ -155,6 +155,110 @@
 			(t (list (get 'mexpt 'msimpind) ;; don't know
 				 Base
 				 (list '($signum) Power)))))))
+
+	       (defun newvarmexpt (x e flag)
+  ;; WHEN FLAG IS T, CALL RETURNS RATFORM
+  (prog (topexp)
+     (when (and (integerp e) (not flag))
+       (return (newvar1 (cadr x))))
+     ;; only change is the line below.
+     (when (equal '(0 . 0) (cdadr x))(return '(0 . 0))) ;; any power of indef
+
+     
+     (setq topexp 1)
+     top  (cond
+
+	    ;; X=B^N FOR N A NUMBER
+	    ((integerp e)
+	     (setq topexp (* topexp e))
+	     (setq x (cadr x)))
+	    ((atom e) nil)
+
+	    ;; X=B^(P/Q) FOR P AND Q INTEGERS
+	    ((eq (caar e) 'rat)
+	     (cond ((or (minusp (cadr e)) (> (cadr e) 1))
+		    (setq topexp (* topexp (cadr e)))
+		    (setq x (list '(mexpt)
+				  (cadr x)
+				  (list '(rat) 1 (caddr e))))))
+	     (cond ((or flag (numberp (cadr x)) ))
+		   (*ratsimp*
+		    (cond ((memalike x radlist) (return nil))
+			  (t (setq radlist (cons x radlist))
+			     (return (newvar1 (cadr x))))) )
+		   ($algebraic (newvar1 (cadr x)))))
+	    ;; X=B^(A*C)
+	    ((eq (caar e) 'mtimes)
+	     (cond
+	       ((or
+
+		 ;; X=B^(N *C)
+		 (and (atom (cadr e))
+		      (integerp (cadr e))
+		      (setq topexp (* topexp (cadr e)))
+		      (setq e (cddr e)))
+
+		 ;; X=B^(P/Q *C)
+		 (and (not (atom (cadr e)))
+		      (eq (caaadr e) 'rat)
+		      (not (equal 1 (cadadr e)))
+		      (setq topexp (* topexp (cadadr e)))
+		      (setq e (cons (list '(rat)
+					  1
+					  (caddr (cadr e)))
+				    (cddr e)))))
+		(setq x
+		      (list '(mexpt)
+			    (cadr x)
+			    (setq e (simplify (cons '(mtimes)
+						    e)))))
+		(go top))))
+
+	    ;; X=B^(A+C)
+	    ((and (eq (caar e) 'mplus) expsumsplit) ;SWITCH CONTROLS
+	     (setq			;SPLITTING EXPONENT
+	      x				;SUMS
+	      (cons
+	       '(mtimes)
+	       (mapcar
+		#'(lambda (ll)
+		  (list '(mexpt)
+			(cadr x)
+			(simplify (list '(mtimes)
+					topexp
+					ll))))
+		(cdr e))))
+	     (cond (flag (return (prep1 x)))
+		   (t (return (newvar1 x))))))
+     (cond (flag nil)
+	   ((equal 1 topexp)
+	    (cond ((or (atom x)
+		       (not (eq (caar x) 'mexpt)))
+		   (newvar1 x))
+		  ((or (memalike x varlist) (memalike x vlist))
+		   nil)
+		  (t (cond ((or (atom x) (null *fnewvarsw))
+			    (putonvlist x))
+			   (t (setq x (littlefr1 x))
+			      (mapc #'newvar1 (cdr x))
+			      (or (memalike x vlist)
+				  (memalike x varlist)
+				  (putonvlist x)))))))
+	   (t (newvar1 x)))
+     (return
+       (cond
+	 ((null flag) nil)
+	 ((equal 1 topexp)
+	  (cond
+	    ((and (not (atom x)) (eq (caar x) 'mexpt))
+	     (cond ((assolike x genpairs))
+		   ;; *** SHOULD ONLY GET HERE IF CALLED FROM FR1. *FNEWVARSW=NIL
+		   (t (setq x (littlefr1 x))
+		      (cond ((assolike x genpairs))
+			    (t (newsym x))))))
+	    (t (prep1 x))))
+	 (t (ratexpt (prep1 x) topexp))))))
+	       
 				 
 ;;; the rest of this, uh dunno..				 
 
